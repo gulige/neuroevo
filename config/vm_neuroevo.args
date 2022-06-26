@@ -1,0 +1,9 @@
+-hidden
+-heart
+
+-name neuroevo@127.0.0.1
+-setcookie neuroevo_cookie
+
++P 1024000
++K true
++A30

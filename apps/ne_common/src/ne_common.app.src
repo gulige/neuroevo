@@ -1,15 +1,14 @@
-{application, neuroevo,
+{application, ne_common,
  [{description, "An OTP application"},
   {vsn, "0.1.0"},
   {registered, []},
-  {mod, { neuroevo_app, []}},
   {applications,
    [kernel,
-    stdlib,
-    lager,
-    ne_common
+    stdlib
    ]},
-  {env,[]},
+  {env,[
+      {env, dev}
+  ]},
   {modules, []},
 
   {maintainers, []},
