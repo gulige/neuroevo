@@ -9,6 +9,7 @@
     mnesia,
     tools,
     lager,
+    gs,
     ne_common
    ]},
   {env,[]},
