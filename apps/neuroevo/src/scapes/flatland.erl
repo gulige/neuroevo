@@ -812,7 +812,7 @@ move(Avatar, Speed0) ->
 translate(Avatar, {DX, DY}) ->
     {LX, LY} = Avatar#avatar.loc,
     Energy = Avatar#avatar.energy,
-    U_Energy = Energy - 0.1 * (math:sqrt(math:pow(DX, 2), math:pow(DY, 2))) - 0.1,
+    U_Energy = Energy - 0.1 * (math:sqrt(math:pow(DX, 2) + math:pow(DY, 2))) - 0.1,
     U_Loc = {LX + DX, LY + DY},
     U_Objects = [Obj#obj{pivot = {PX + DX, PY + DY},
                          coords = [{X + DX, Y + DY} || {X, Y} <- Coords]} ||
