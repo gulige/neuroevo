@@ -109,6 +109,8 @@ handle_call({enter, Morphology, Specie_Id, CT, CF, TotNeurons, Exoself_PId}, {Fr
         entered ->
             ?DBG("Already Registered Citizen:~p~n", [Exoself_PId]),
             {undefined, State};
+        destroyed ->
+            {destroyed, State};
         undefined ->
             Stats = {CF, CT, TotNeurons},
             Avatars = State#scape.avatars,
@@ -221,7 +223,7 @@ handle_cast({Visor_PId, unsubscribe}, State) ->
     {noreply, State};
 
 handle_cast({Visor_PId, redraw, Filter}, State) ->
-    ?DBG("redraw: ~p~n", [util:now()]),
+    %?DBG("redraw: ~p~n", [util:now()]),
     case get(visor) of
         undefined ->
             ?DBG("Scape:~p can't redraw, Visor:~p is not subscribed.~n", [State#scape.type, Visor_PId]);
