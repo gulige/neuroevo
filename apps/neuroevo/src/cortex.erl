@@ -42,7 +42,7 @@ prep(ExoSelf_PId) ->
 loop(Id, ExoSelf_PId, SPIds, {[APId|APIds], MAPIds}, NPIds, CycleAcc, FitnessAcc, EFAcc, active) ->
     receive
         {APId, sync, Fitness, EndFlag} ->
-            ?DBG("Fitness:~p~n", [Fitness]),
+            %?DBG("Fitness:~p~n", [Fitness]),
             case Fitness =:= goal_reached of
                 true ->
                     put(goal_reached, true),

@@ -32,7 +32,7 @@ distance_scanner(Op, {Zoom, PanX, PanY}, Density, Spread, Loc, Direction, Avatar
     end,
     UnitRays = lib_sensor_flatland:create_UnitRays(Direction, Density, Resolution, StartAngle, []),
     RangeScanList = compose_RangeScanList(Loc, UnitRays, Avatars, []),
-    ?DBG("RangeScanList:~p~n", [RangeScanList]),
+    %?DBG("RangeScanList:~p~n", [RangeScanList]),
     case {Op, get(canvas)} of
         {silent, _} ->
             done;

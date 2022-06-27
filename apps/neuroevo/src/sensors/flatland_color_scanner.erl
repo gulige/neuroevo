@@ -34,7 +34,7 @@ color_scanner(Op, {Zoom, PanX, PanY}, Density, Spread, Loc, Direction, Avatars) 
     end,
     UnitRays = lib_sensor_flatland:create_UnitRays(Direction, Density, Resolution, StartAngle, []),
     ColorScanList = compose_ColorScanList(Loc, UnitRays, Avatars, []),
-    ?DBG("ColorScanList:~p~n", [ColorScanList]),
+    %?DBG("ColorScanList:~p~n", [ColorScanList]),
     case {Op, get(canvas)} of
         {silent, _} ->
             done;

@@ -141,7 +141,7 @@ handle_call({get_all, avatars, Exoself_PId}, {From_PId, _Ref}, State) ->
 
 % Command: two_wheels
 handle_call({actuator, Exoself_PId, Command, Output}, {From_PId, _Ref}, State) ->
-    ?DBG("########################: ~p~n", [util:now()]),
+    %?DBG("########################: ~p~n", [util:now()]),
     {FitnessP, U_State} = case get(Exoself_PId) of
         undefined ->
             ?DBG("Unregistered Citizen:~p~n", [Exoself_PId]),
@@ -306,7 +306,7 @@ heartbeat(Scape_PId, Tau, Time) ->
 
 % 新陈代谢
 metabolics([Avatar|Avatars], Acc) ->
-    ?DBG("Avatar:~p~n", [Avatar]),
+    %?DBG("Avatar:~p~n", [Avatar]),
     case Avatar#avatar.type of
         plant -> % 植物
             case Avatar#avatar.state of
@@ -330,19 +330,19 @@ metabolics([Avatar|Avatars], Acc) ->
             end;
         predator -> % 捕食者
             Energy = Avatar#avatar.energy,
-            ?DBG("Predator:energy=~p~n", [Energy]),
+            %?DBG("Predator:energy=~p~n", [Energy]),
             U_Avatar = Avatar#avatar{energy = Energy - 0.01},
             metabolics(Avatars, [U_Avatar|Acc]);
         prey -> % 被捕食者
             Energy = Avatar#avatar.energy,
-            ?DBG("Prey:energy=~p~n", [Energy]),
+            %?DBG("Prey:energy=~p~n", [Energy]),
             U_Avatar = Avatar#avatar{energy = Energy - 0.01},
             metabolics(Avatars, [U_Avatar|Acc]);
         _ ->
             metabolics(Avatars, [Avatar|Acc])
     end;
 metabolics([], Acc) ->
-    ?DBG("Time:~p Avatar_Count:~p~n", [util:now(), length(Acc)]),
+    %?DBG("Time:~p Avatar_Count:~p~n", [util:now(), length(Acc)]),
     Acc.
 
 % 变成熟
@@ -427,7 +427,7 @@ collision_detection(OperatorAvatar, Avatars) ->
     collision_detection(OperatorAvatar, 0, 0, Avatars, []).
 
 collision_detection(OperatorAvatar, EnergyAcc, Kills, [Avatar|Avatars], Acc) ->
-    ?DBG("OperatorAvatar:~p Avatar:~p~n", [OperatorAvatar, Avatar]),
+    %?DBG("OperatorAvatar:~p Avatar:~p~n", [OperatorAvatar, Avatar]),
     if
         (Avatar#avatar.id =:= OperatorAvatar#avatar.id) ->
             collision_detection(OperatorAvatar, EnergyAcc, Kills, Avatars, [Avatar|Acc]);
@@ -511,9 +511,9 @@ create_avatar(Morphology, Specie_Id, Id, Stats, Parameters) ->
 
 % 动物
 create_avatar(Morphology, Specie_Id, Id, {CF, CT, TotNeurons}, void, InitEnergy)
-  when (Morphology =:= predator) orelse (Morphology =:= prey) orelse (Morphology =:= automaton) ->
+  when (Morphology =:= flatland_predator) orelse (Morphology =:= flatland_prey) orelse (Morphology =:= automaton) ->
     case Morphology of
-        predator ->
+        flatland_predator ->
             ?DBG("Creating Predator:~p~n", [{CF, CT, Id}]),
             Color = red,
             %Color = visor:ct2color(CT),
@@ -537,7 +537,7 @@ create_avatar(Morphology, Specie_Id, Id, {CF, CT, TotNeurons}, void, InitEnergy)
                        #obj{type = line, color = red, pivot = {X, Y}, coords = [{X, Y}, {X + DX * R * 2, Y + DY * R * 2}]}],
             #avatar{
                 id = Id,
-                type = Morphology,
+                type = predator,
                 energy = Energy,
                 loc = Loc,
                 direction = Direction,
@@ -548,7 +548,7 @@ create_avatar(Morphology, Specie_Id, Id, {CF, CT, TotNeurons}, void, InitEnergy)
                 sensors = CT,
                 stats = TotNeurons
             };
-        prey ->
+        flatland_prey ->
             ?DBG("Creating Prey:~p~n", [{CF, CT, Id}]),
             Loc = {X, Y} = {rand:uniform(800), rand:uniform(500)},
             Direction = {DX, DY} = {1 / math:sqrt(2), 1 / math:sqrt(2)},
@@ -576,7 +576,7 @@ create_avatar(Morphology, Specie_Id, Id, {CF, CT, TotNeurons}, void, InitEnergy)
             end,
             #avatar{
                 id = Id,
-                type = Morphology,
+                type = prey,
                 energy = Energy,
                 loc = Loc,
                 direction = Direction,
@@ -801,7 +801,7 @@ move(Avatar, Speed0) ->
     Energy = Avatar#avatar.energy,
     % 根据移动的距离消耗能量
     U_Energy = Energy - 0.1 * (math:sqrt(math:pow(DX * Speed, 2) + math:pow(DY * Speed, 2))) - 0.1,
-    ?DBG("Avatar:~p Energy burned:~p~n",[self(), U_Energy - Energy]),
+    %?DBG("Avatar:~p Energy burned:~p~n",[self(), U_Energy - Energy]),
     U_Loc = {LX + (DX * Speed), LY + (DY * Speed)},
     U_Objects = [Obj#obj{pivot = {PX + (DX * Speed), PY + (DY * Speed)},
                          coords = [{X + (DX * Speed), Y + (DY * Speed)} || {X, Y} <- Coords]} ||

@@ -10,7 +10,7 @@
 create_UnitRays(_, 0, _, _, Acc) ->
     Acc;
 create_UnitRays({X, Y}, Density, Resolution, Angle, Acc) ->
-    ?DBG("Angle:~p~n", [Angle * 180 / math:pi()]),
+    %?DBG("Angle:~p~n", [Angle * 180 / math:pi()]),
     % 将{X,Y}方向逆时针旋转Angle角度
     UnitRay = {X * math:cos(Angle) - Y * math:sin(Angle), X * math:sin(Angle) + Y * math:cos(Angle)},
     create_UnitRays({X, Y}, Density - 1, Resolution, Angle + Resolution, [UnitRay|Acc]).
@@ -50,7 +50,7 @@ shortest_intrLine2(_Gaze, [], {Distance, Color}, Energy) ->
     end.
 
 %% 寻找与avatar各部件的最近距离和颜色
-intr(Gaze, [{circle, _Id, Color, _Pivot, C, R}|Objects], {Min, MinColor}) ->
+intr(Gaze, [#obj{type = circle, color = Color, coords = C, params = R}|Objects], {Min, MinColor}) ->
     {S, D} = Gaze, % 自己的位置和朝向
     [{Xc, Yc}] = C, % 部件圆的圆心
     {Xs, Ys} = S, % 自己的位置
@@ -58,7 +58,7 @@ intr(Gaze, [{circle, _Id, Color, _Pivot, C, R}|Objects], {Min, MinColor}) ->
     {Xv, Yv} = {Xs - Xc, Ys - Yc}, % 部件到自己的矢量
     VdotD = Xv * Xd + Yv * Yd, % 两个矢量（部件到自己的矢量v、自己的朝向d）的点积
     Dis = Xv * Xv + Yv * Yv - VdotD * VdotD - R * R, % 垂直于自己朝向的距离平方
-    ?DBG("S:~p D:~p C:~p V:~p R:~p VdotD:~p Dis:~p~n",[S, D, C, {Xv, Yv}, R, VdotD, Dis]),
+    %?DBG("S:~p D:~p C:~p V:~p R:~p VdotD:~p Dis:~p~n",[S, D, C, {Xv, Yv}, R, VdotD, Dis]),
     Result = case Dis > 0 of
         false ->
             inf;
@@ -80,7 +80,7 @@ intr(Gaze, [{circle, _Id, Color, _Pivot, C, R}|Objects], {Min, MinColor}) ->
             {Min, MinColor}
     end,
     intr(Gaze, Objects, {UMin, UMinColor});
-intr(Gaze, [{line, _Id, Color, _Pivot, [{X1, Y1}, {X2, Y2}], _Parameter}|Objects], {Min, MinColor}) ->
+intr(Gaze, [#obj{type = line, color = Color, coords = [{X1, Y1}, {X2, Y2}]}|Objects], {Min, MinColor}) ->
     {S, D} = Gaze, % 自己的位置和朝向
     {Xs, Ys} = S, % 自己的位置
     {Xd, Yd} = D, % 自己的朝向，单位矢量
@@ -112,7 +112,7 @@ intr(_Gaze, [], {Min, MinColor}) ->
     {Min, MinColor}.
 
 clr2val(Color) ->
-    ?DBG("transducers:clr2val(Color): Color = ~p~n", [Color]),
+    %?DBG("transducers:clr2val(Color): Color = ~p~n", [Color]),
     case Color of
         black -> -1; % poison
         cyan -> -0.75;

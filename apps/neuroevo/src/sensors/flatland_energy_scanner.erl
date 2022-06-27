@@ -32,7 +32,7 @@ energy_scanner(Op, {Zoom, PanX, PanY}, Density, Spread, Loc, Direction, Avatars)
     end,
     UnitRays = lib_sensor_flatland:create_UnitRays(Direction, Density, Resolution, StartAngle, []),
     EnergyScanList = compose_EnergyScanList(Loc, UnitRays, Avatars, []),
-    ?DBG("EnergyScanList:~p~n", [EnergyScanList]),
+    %?DBG("EnergyScanList:~p~n", [EnergyScanList]),
     case Op of
         silent ->
             done;
