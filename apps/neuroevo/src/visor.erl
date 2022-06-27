@@ -170,8 +170,8 @@ redraw_objects(_Filter, []) ->
     done.
 
 redraw_SensorVisualization(Filter, [Avatar|Avatars], AllAvatars) ->
-    %color_scaner(Op, {Zoom, PanX, PanY}, Density, Spread, Loc, Direction, Avatars)
-    sensors:color_scaner(draw, Filter, 45, math:pi() * 2, Avatar#avatar.loc, Avatar#avatar.direction, AllAvatars -- [Avatar]),
+    %color_scanner(Op, {Zoom, PanX, PanY}, Density, Spread, Loc, Direction, Avatars)
+    flatland_color_scanner:color_scanner(draw, Filter, 45, math:pi() * 2, Avatar#avatar.loc, Avatar#avatar.direction, AllAvatars -- [Avatar]),
     redraw_SensorVisualization(Filter, Avatars, AllAvatars);
 redraw_SensorVisualization(_Filter, [], _AllAvatars) ->
     done.

@@ -1,6 +1,8 @@
 -module(flatland_color_scanner).
 -export([sense/4]).
 
+-export([color_scanner/7]). % for visor
+
 -include_lib("ne_common/src/include/common.hrl").
 -include("records.hrl").
 -include("flatland.hrl").

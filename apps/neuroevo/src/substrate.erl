@@ -681,7 +681,7 @@ calculate_output(I_Neurodes, Neurode, Plasticity, CPP_PIds, CEP_PIds) ->
 calculate_neurode_output_std([{_I_Coord, O, _I_Weights}|I_Neurodes], {Coord, Prev_O, [Weight|Weights]}, Acc) ->
     calculate_neurode_output_std(I_Neurodes, {Coord, Prev_O, Weights}, O * Weight + Acc);
 calculate_neurode_output_std([], {Coord, Prev_O, []}, Acc) ->
-    functions:tanh(Acc). % 固定是tanh
+    activation_functions:tanh(Acc). % 固定是tanh
 
 % 具体计算单个神经节点的输出（可塑性版）
 % plast：plasticity
@@ -689,7 +689,7 @@ calculate_neurode_output_std([], {Coord, Prev_O, []}, Acc) ->
 calculate_neurode_output_plast([{_I_Coord, O, _I_Weights}|I_Neurodes], {Coord, Prev_O, [{W, _LF, _Parameters}|WPs]}, Acc) ->
     calculate_neurode_output_plast(I_Neurodes, {Coord, Prev_O, WPs}, O * W + Acc);
 calculate_neurode_output_plast([], {Coord, Prev_O, []}, Acc) ->
-    functions:tanh(Acc). % 固定是tanh
+    activation_functions:tanh(Acc). % 固定是tanh
 
 % 根据学习函数更新单个神经节点的各个权重
 % 返回：{Coord, Output, WeightPs}

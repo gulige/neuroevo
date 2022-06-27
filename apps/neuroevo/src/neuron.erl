@@ -87,7 +87,7 @@ loop(S, ExoSelf_PId, [ok], [ok], SIAcc, MIAcc) ->
             Ordered_MIAcc = lists:reverse(MIAcc),
             MI_PIdPs = S#state.mi_pidps_current,
             MAggregation_Product = functions:saturation(signal_aggregator:dot_product(Ordered_MIAcc, MI_PIdPs), ?SAT_LIMIT),
-            MOutput = functions:tanh(MAggregation_Product), % 固定是tanh
+            MOutput = activation_functions:tanh(MAggregation_Product), % 固定是tanh
             U_SI_PIdPs = plasticity:PFName([MOutput|PFParameters], Ordered_SIAcc, SI_PIdPs, SOutput), % 可塑性对权重的调整（根据输出）
             % 下一轮继续逼近它所能达到的局部最优，可塑性权重调整和权重扰动不同，扰动是“无意识”、“无导向”、随机扩展局部最优的探索空间
             S#state{si_pidps_current = U_SI_PIdPs}
