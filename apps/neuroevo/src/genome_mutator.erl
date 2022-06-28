@@ -504,7 +504,7 @@ link_FromNeuron(FromN, ToId, Generation) ->
     FromRO_Ids = FromN#neuron.ro_ids,
     case lists:member(ToId, FromOutput_Ids) of
         true -> % 重复连接
-            exit("******** ERROR:add_NeuronO[can not add O_Id to Neuron]: ~p already a member of ~p~n",[ToId, FromN#neuron.id]);
+            exit(?STR("******** ERROR:add_NeuronO[can not add O_Id to Neuron]: ~p already a member of ~p~n", [ToId, FromN#neuron.id]));
         false ->
             {U_FromOutput_Ids, U_FromRO_Ids} = case FromLI >= ToLI of
                 true -> % 循环连接
@@ -541,7 +541,7 @@ link_ToNeuron(FromId, FromOVL, ToN, Generation) ->
                     ToN#neuron{input_idps = U_ToSI_IdPs, generation = Generation}
             end;
         _ -> % 重复连接（标准输入或调制输入任占其一）
-            exit("ERROR:add_NeuronI::[can not add I_Id]: ~p already connected to ~p~n", [FromId, ToN#neuron.id])
+            exit(?STR("ERROR:add_NeuronI::[can not add I_Id]: ~p already connected to ~p~n", [FromId, ToN#neuron.id]))
     end.
 
 % The function link_FromSensorToNeuron/3 establishes a connection from the sensor with id From_SensorId, and the neuron with id To_NeuronId.
@@ -569,7 +569,7 @@ link_FromSensor(FromS, ToId, Generation) ->
     FromFanout_Ids = FromS#sensor.fanout_ids,
     case lists:member(ToId, FromFanout_Ids) of
         true ->
-            exit("******** ERROR:link_FromSensor[can not add ToId to Sensor]: ~p already a member of ~p~n", [ToId, FromS#sensor.id]);
+            exit(?STR("******** ERROR:link_FromSensor[can not add ToId to Sensor]: ~p already a member of ~p~n", [ToId, FromS#sensor.id]));
         false ->
             FromS#sensor{
                 fanout_ids = [ToId|FromFanout_Ids],
@@ -649,7 +649,7 @@ cutlink_FromNeuron(FromN, ToId, Generation) ->
                 ro_ids = U_FromRO_Ids,
                 generation = Generation};
         false ->
-            exit("ERROR:: cutlink_FromNeuron [can not remove O_Id]: ~p not a member of ~p~n", [ToId, FromN#neuron.id])
+            exit(?STR("ERROR:: cutlink_FromNeuron [can not remove O_Id]: ~p not a member of ~p~n", [ToId, FromN#neuron.id]))
     end.
 
 % cutlink_ToNeuron/3 cuts the connection on the ToNeuron (ToN) side. The function first checks if the FromId is a member of the ToN's input_idps list,
@@ -668,7 +668,7 @@ cutlink_ToNeuron(FromId, ToN, Generation) ->
             U_ToMI_IdPs = lists:keydelete(FromId, 1, ToMI_IdPs),
             ToN#neuron{input_idps_modulation = U_ToMI_IdPs, generation = Generation};
         true ->
-            exit("ERROR[can not remove I_Id]: ~p not a member of ~p~n", [FromId, ToN#neuron.id])
+            exit(?STR("ERROR[can not remove I_Id]: ~p not a member of ~p~n", [FromId, ToN#neuron.id]))
     end.
 
 % The cutlink_FromSensorToNeuron/3 cuts the connection from the From_SensorId to To_NeuronId. The function first cuts the cunnection on the From_SensorId
@@ -698,7 +698,7 @@ cutlink_FromSensor(FromS, ToId, Generation) ->
                 fanout_ids = U_FromFanout_Ids,
                 generation = Generation};
         false ->
-            exit("ERROR:: cutlink_FromSensor [can not remove ToId]: ~p not a member of ~p~n", [ToId, FromS#sensor.id])
+            exit(?STR("ERROR:: cutlink_FromSensor [can not remove ToId]: ~p not a member of ~p~n", [ToId, FromS#sensor.id]))
     end.
 
 % cutlink_FromNeuronToActuator/3 cuts the connection from the From_NeuronId to To_ActuatorId. The function first cuts the connection on the From_NeuronId
@@ -728,7 +728,7 @@ cutlink_ToActuator(FromId, ToA, Generation) ->
                 fanin_ids = U_ToFanin_Ids,
                 generation = Generation};
         false ->
-            exit("ERROR:: cutlink_ToActuator [can not remove FromId]: ~p not a member of ~p~n", [FromId, ToA#actuator.id])
+            exit(?STR("ERROR:: cutlink_ToActuator [can not remove FromId]: ~p not a member of ~p~n", [FromId, ToA#actuator.id]))
     end.
 
 % The add_outlink/1 function reads the cortex record from the database based on the cortex id extracted from the agent record. The function then selects

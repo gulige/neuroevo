@@ -18,3 +18,5 @@
 -define(ERR(F, A), lager:error(F, A)).
 -define(ERR(F), lager:error(F)).
 
+-define(STR(F, A), lists:flatten(io_lib:format(F, A))).
+
