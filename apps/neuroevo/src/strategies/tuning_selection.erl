@@ -38,7 +38,7 @@ dynamic_random(N_Ids, AgentGeneration, PerturbationRange, AnnealingParameter) ->
         ExtractedN_IdPs ->
             ExtractedN_IdPs
     end,
-    ?DBG("ChosenN_IdPs:~p~n", [ChosenN_IdPs]),
+    %?DBG("ChosenN_IdPs:~p~n", [ChosenN_IdPs]),
     Tot_Neurons = length(ChosenN_IdPs),
     MutationP = 1 / math:sqrt(Tot_Neurons),
     choose_randomNIdPs(MutationP, ChosenN_IdPs).

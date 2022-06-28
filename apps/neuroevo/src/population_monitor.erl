@@ -280,7 +280,7 @@ handle_cast({Agent_Id, terminated, Fitness}, #state{evolutionary_algorithm = ste
                 false ->
                     ProperlySorted_AgentSummaries
             end,
-            ?INFO("Valid_AgentSummaries:~p~n", [Valid_AgentSummaries]),
+            %?INFO("Valid_AgentSummaries:~p~n", [Valid_AgentSummaries]),
             % 从有效的原型中挑选一个
             {WinnerFitness, WinnerProfile, WinnerAgent_Id} = selection_algorithm:SelectionAlgorithm(Valid_AgentSummaries), % 1个参数的
             ActiveAgent_IdP = case rand:uniform() < 0.1 of
@@ -801,7 +801,7 @@ calculate_SpecieAvgNodes(Specie_Id) ->
     calculate_SpecieAvgNodes({specie, S}).
 
 calculate_AvgNodes([Agent_Id|Agent_Ids], NAcc) ->
-    ?DBG("calculate_AvgNodes/2 Agent_Id:~p~n", [Agent_Id]),
+    %?DBG("calculate_AvgNodes/2 Agent_Id:~p~n", [Agent_Id]),
     A = genotype:read({agent, Agent_Id}),
     Cx = genotype:read({cortex, A#agent.cx_id}),
     Tot_Neurons = length(Cx#cortex.neuron_ids),

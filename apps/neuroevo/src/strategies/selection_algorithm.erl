@@ -21,14 +21,14 @@ competition(ProperlySorted_AgentSummaries, NeuralEnergyCost, PopulationLimit) ->
     Invalid_AgentSummaries = ProperlySorted_AgentSummaries -- Valid_AgentSummaries,
     {_, _, Invalid_AgentIds} = lists:unzip3(Invalid_AgentSummaries),
     [genotype:delete_Agent(Agent_Id) || Agent_Id <- Invalid_AgentIds],
-    ?DBG("Valid_AgentSummaries:~p~n", [Valid_AgentSummaries]),
-    ?DBG("Invalid_AgentSummaries:~p~n", [Invalid_AgentSummaries]),
+    %?DBG("Valid_AgentSummaries:~p~n", [Valid_AgentSummaries]),
+    %?DBG("Invalid_AgentSummaries:~p~n", [Invalid_AgentSummaries]),
     TopAgentSummaries = lists:sublist(Valid_AgentSummaries, 3), % Top 3
     {_TopFitnessList, _TopTotNs, TopAgent_Ids} = lists:unzip3(TopAgentSummaries),
-    ?DBG("NeuralEnergyCost:~p, PopulationLimit:~p~n", [NeuralEnergyCost, PopulationLimit]),
+    %?DBG("NeuralEnergyCost:~p, PopulationLimit:~p~n", [NeuralEnergyCost, PopulationLimit]),
     {AlotmentsP, NextGenSize_Estimate} = calculate_alotments(Valid_AgentSummaries, NeuralEnergyCost, [], 0),
     Normalizer = NextGenSize_Estimate / PopulationLimit,
-    ?DBG("Population size normalizer:~p~n", [Normalizer]),
+    %?DBG("Population size normalizer:~p~n", [Normalizer]),
     NewGenAgent_Ids = gather_survivors(AlotmentsP, Normalizer, []),
     {NewGenAgent_Ids, TopAgent_Ids}.
 
@@ -61,7 +61,7 @@ calculate_alotments([], _NeuralEnergyCost, Acc, NewPopAcc) ->
 % a list of ids, composed of the surviving parent agent ids, and their offspring.
 gather_survivors([{NextGenAlotment, Fitness, TotNeurons, Agent_Id}|AlotmentsP], Normalizer, Acc) ->
     Normalized_NextGenAlotment = round(NextGenAlotment / Normalizer), % 除以Normalizer，使得总数大约维持在物种的PopulationLimit
-    ?DBG("Agent_Id:~p Normalized_NextGenAlotment:~p~n", [Agent_Id, Normalized_NextGenAlotment]),
+    %?DBG("Agent_Id:~p Normalized_NextGenAlotment:~p~n", [Agent_Id, Normalized_NextGenAlotment]),
     SurvivingAgent_Ids = case Normalized_NextGenAlotment >= 1 of
         true ->
             MutantAgent_Ids = case Normalized_NextGenAlotment >= 2 of
@@ -78,7 +78,7 @@ gather_survivors([{NextGenAlotment, Fitness, TotNeurons, Agent_Id}|AlotmentsP], 
     end,
     gather_survivors(AlotmentsP, Normalizer, lists:append(SurvivingAgent_Ids, Acc));
 gather_survivors([], _Normalizer, Acc) ->
-    ?DBG("New Population:~p, PopSize:~p~n", [Acc, length(Acc)]),
+    %?DBG("New Population:~p, PopSize:~p~n", [Acc, length(Acc)]),
     Acc.
 
 % ProperlySorted_AgentSummaries元素结构：{Fitness, TotNeurons, AgentId}
@@ -90,11 +90,11 @@ top3(ProperlySorted_AgentSummaries, NeuralEnergyCost, PopulationLimit) ->
     {_, _, Valid_AgentIds} = lists:unzip3(Valid_AgentSummaries),
     {_, _, Invalid_AgentIds} = lists:unzip3(Invalid_AgentSummaries),
     [genotype:delete_Agent(Agent_Id) || Agent_Id <- Invalid_AgentIds],
-    ?DBG("Valid_AgentSummaries:~p~n", [Valid_AgentSummaries]),
-    ?DBG("Invalid_AgentSummaries:~p~n", [Invalid_AgentSummaries]),
+    %?DBG("Valid_AgentSummaries:~p~n", [Valid_AgentSummaries]),
+    %?DBG("Invalid_AgentSummaries:~p~n", [Invalid_AgentSummaries]),
     TopAgentSummaries = lists:sublist(Valid_AgentSummaries, 3),
     {_TopFitnessList, _TopTotNs, TopAgent_Ids} = lists:unzip3(TopAgentSummaries),
-    ?DBG("NeuralEnergyCost:~p, PopulationLimit:~p~n", [NeuralEnergyCost, PopulationLimit]),
+    %?DBG("NeuralEnergyCost:~p, PopulationLimit:~p~n", [NeuralEnergyCost, PopulationLimit]),
     NewGenAgent_Ids = breed(Valid_AgentIds, PopulationLimit - TotSurvivors, []),
     {NewGenAgent_Ids, TopAgent_Ids}.
 

@@ -150,7 +150,7 @@ prep(Agent_Id, PM_PId) ->
 loop(S) ->
     receive
         {Cx_PId, evaluation_completed, Fitness, Cycles, Time, GoalReachedFlag} -> % 经过NN的若干轮Sense-Think-Act后，该组权重评估完成
-            ?DBG("E Msg:~p~n E State:~p~n", [{Cx_PId, evaluation_completed, Fitness, Cycles, Time, GoalReachedFlag}, S]),
+            %?DBG("E Msg:~p~n E State:~p~n", [{Cx_PId, evaluation_completed, Fitness, Cycles, Time, GoalReachedFlag}, S]),
             IdsNPIds = S#state.idsNpids,
             {U_HighestFitness, U_Attempt} = case Fitness > S#state.highest_fitness of
                 true ->
@@ -199,7 +199,7 @@ loop(S) ->
                     end,
                     gen_server:cast(S#state.pm_pid, {S#state.agent_id, terminated, U_HighestFitness});
                 false -> % Continue training（调整权重）
-                    ?DBG("exoself state:~p~n", [S]),
+                    %?DBG("exoself state:~p~n", [S]),
                     reenter_PublicScape(S#state.public_scape_pids,
                                         [genotype:dirty_read({sensor, ets:lookup_element(IdsNPIds, PId, 2)}) || PId <- S#state.spids],
                                         [genotype:dirty_read({actuator, ets:lookup_element(IdsNPIds, PId, 2)}) || PId <- S#state.apids],
@@ -211,7 +211,7 @@ loop(S) ->
                     AnnealingParameter = S#state.annealing_parameter,
                     ChosenNIdPs = tuning_selection:TuningSelectionFunction(S#state.nids, S#state.generation, PerturbationRange, AnnealingParameter),
                     [ets:lookup_element(IdsNPIds, NId, 2) ! {self(), weight_perturb, Spread} || {NId, Spread} <- ChosenNIdPs],
-                    ?DBG("ChosenNPIds:~p~n", [ChosenNIdPs]),
+                    %?DBG("ChosenNPIds:~p~n", [ChosenNIdPs]),
                     put(perturbed, ChosenNIdPs), % 记录所选中的被扰动的神经元id列表
                     Cx_PId ! {self(), reactivate},
                     U_S = S#state{
@@ -421,7 +421,7 @@ update_genotype(IdsNPIds, [{N_Id, SI_PIdPs, MI_PIdPs}|WeightPs]) ->
     Updated_MI_IdPs = convert_PIdPs2IdPs(IdsNPIds, MI_PIdPs, []),
     U_N = N#neuron{input_idps = Updated_SI_IdPs, input_idps_modulation = Updated_MI_IdPs},
     genotype:write(U_N),
-    ?DBG("N:~p~n U_N:~p~n", [N, U_N]),
+    %?DBG("N:~p~n U_N:~p~n", [N, U_N]),
     update_genotype(IdsNPIds, WeightPs);
 update_genotype(_IdsNPIds, []) ->
     ok.

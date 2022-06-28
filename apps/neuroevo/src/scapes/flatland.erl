@@ -122,7 +122,9 @@ handle_call({enter, Morphology, Specie_Id, CT, CF, TotNeurons, Exoself_PId}, {Fr
                     NewAvatar = create_avatar(Morphology, Specie_Id, Exoself_PId, Stats, void),
                     visor:draw_avatar(Canvas, NewAvatar)
             end,
-            ?DBG("Avatar:~p entered, ~p~n", [Exoself_PId, Avatar]),
+            %?DBG("Avatar:~p entered, ~p~n", [Exoself_PId, Avatar]),
+            ?DBG("Avatar:~p entered, ~p, ~p, ~p~n",
+                 [Exoself_PId, Morphology, [SN || #sensor{name = SN} <- CT], [AN || #actuator{name = AN} <- CF]]),
             {done, State#scape{avatars = [Avatar|Avatars]}}
     end,
     {reply, Reply, U_State};
@@ -516,7 +518,7 @@ create_avatar(Morphology, Specie_Id, Id, {CF, CT, TotNeurons}, void, InitEnergy)
   when (Morphology =:= flatland_predator) orelse (Morphology =:= flatland_prey) orelse (Morphology =:= automaton) ->
     case Morphology of
         flatland_predator ->
-            ?DBG("Creating Predator:~p~n", [{CF, CT, Id}]),
+            %?DBG("Creating Predator:~p~n", [{CF, CT, Id}]),
             Color = red,
             %Color = visor:ct2color(CT),
             Loc = {X, Y} = {rand:uniform(400) + 300, rand:uniform(400) + 300},
@@ -551,7 +553,7 @@ create_avatar(Morphology, Specie_Id, Id, {CF, CT, TotNeurons}, void, InitEnergy)
                 stats = TotNeurons
             };
         flatland_prey ->
-            ?DBG("Creating Prey:~p~n", [{CF, CT, Id}]),
+            %?DBG("Creating Prey:~p~n", [{CF, CT, Id}]),
             Loc = {X, Y} = {rand:uniform(800), rand:uniform(500)},
             Direction = {DX, DY} = {1 / math:sqrt(2), 1 / math:sqrt(2)},
             Energy = case InitEnergy of
@@ -731,7 +733,7 @@ destroy_avatar(ExoSelf_PId, #scape{avatars = Avatars} = State) ->
                 undefined ->
                     void;
                 {Visor_PId, _Canvas} ->
-                    ?DBG("Avatar:~p~n", [Avatar]),
+                    %?DBG("Avatar:~p~n", [Avatar]),
                     [gs:destroy(Id) || #obj{id = Id} <- Avatar#avatar.objects]
             end
     end,

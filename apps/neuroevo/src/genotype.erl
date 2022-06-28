@@ -278,7 +278,7 @@ extract_maxdim([], Acc) ->
 % (evolutionary history minus the unique ids of the elements), a generalized sensor set, a generalized actuator set, and topology summary.
 update_fingerprint(Agent_Id) ->
     A = read({agent, Agent_Id}),
-    ?DBG("A:~p~n", [A]),
+    %?DBG("A:~p~n", [A]),
     Cx = read({cortex, A#agent.cx_id}),
     % 去除id，达到泛化目的
     GeneralizedSensors = [(read({sensor, S_Id}))#sensor{id = undefined, cx_id = undefined, fanout_ids = []} || S_Id <- Cx#cortex.sensor_ids],
