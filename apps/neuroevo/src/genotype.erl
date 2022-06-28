@@ -252,7 +252,7 @@ generate_ids(Index, Acc) ->
 
 % The generate_UniqueId/0 creates a unique Id using current time, the Id is a floating point value.
 generate_UniqueId() ->
-    {MegaSeconds, Seconds, MicroSeconds} = util:now(),
+    {MegaSeconds, Seconds, MicroSeconds} = util:unique_now(),
     1 / (MegaSeconds * 1000000 + Seconds + MicroSeconds / 1000000).
 
 % 计算最佳的基底维数（依据传感器和执行器的format）

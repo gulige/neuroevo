@@ -9,6 +9,9 @@
 now() ->
     os:timestamp().
 
+unique_now() ->
+    erlang:now().
+
 is_even(Val) ->
     (Val rem 2) =:= 0.
 
