@@ -269,7 +269,16 @@ handle_cast({Agent_Id, terminated, Fitness}, #state{evolutionary_algorithm = ste
             Old_DeadPool_AgentSummaries = Specie#specie.dead_pool,
             Old_Agent_Ids = Specie#specie.agent_ids,
             [AgentSummary] = construct_AgentSummaries([Agent_Id], []),
-            DeadPool_AgentSummaries = [AgentSummary | Old_DeadPool_AgentSummaries],
+            DeadPool_AgentSummaries =
+                case lists:keyfind(Agent_Id, 3, Old_DeadPool_AgentSummaries) of
+                    false -> [AgentSummary | Old_DeadPool_AgentSummaries];
+                    {OldFitness, _, _} ->
+                        {NewFitness, _, _} = AgentSummary,
+                        case NewFitness > OldFitness of
+                            true -> lists:keyreplace(Agent_Id, 3, Old_DeadPool_AgentSummaries, AgentSummary);
+                            false -> Old_DeadPool_AgentSummaries
+                        end
+                end,
             ProperlySorted_AgentSummaries = fitness_postprocessor:FitnessPostprocessor(DeadPool_AgentSummaries),
             Valid_AgentSummaries = case length(ProperlySorted_AgentSummaries) >= SpecieSizeLimit of
                 true -> % 超过物种内原型数量限制，删除最不优秀的那一个
