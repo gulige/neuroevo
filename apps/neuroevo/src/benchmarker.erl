@@ -24,7 +24,7 @@
                      connection_architecture = CA,
                      population_evo_alg_f = generational,
                      neural_pfs = [hebbian]} ||
-         Morphology <- [xor_mimic], CA <- [recurrent]]).
+         Morphology <- [flatland_prey, flatland_predator], CA <- [recurrent]]).
 
 -record(graph, {
     morphology,
@@ -141,6 +141,7 @@ report(Experiment_Id, FileName) ->
     E = genotype:dirty_read({experiment, Experiment_Id}),
     Traces = E#experiment.trace_acc,
     FilePathName = ?DIR ++ FileName ++ "_Trace_Acc",
+    filelib:ensure_dir(?DIR),
     {ok, File} = file:open(FilePathName, write),
     lists:foreach(fun(T) -> io:format(File, "~p.~n", [T]) end, Traces),
     file:close(File),
@@ -242,6 +243,7 @@ avg_stats([], Avg) ->
 write_Graphs([G|Graphs], Graph_Postfix) ->
     Morphology = G#graph.morphology,
     U_G = G#graph{evaluation_Index = [500 * Index || Index <- lists:seq(1, length(G#graph.avg_fitness))]}, % 构建timeslots坐标
+    filelib:ensure_dir(?DIR),
     {ok, File} = file:open(?DIR ++ "graph_" ++ atom_to_list(Morphology) ++ "_" ++ Graph_Postfix, write),
     io:format(File, "#Avg Fitness Vs Evaluations, Morphology:~p~n", [Morphology]),
     lists:foreach(fun({X, Y, Std}) -> io:format(File, "~p ~p ~p~n", [X, Y, Std]) end,
@@ -268,6 +270,7 @@ write_Graphs([], _Graph_Postfix) ->
 
 unconsult(List) ->
     {ok, File} = file:open(?DIR ++ "alife_benchmark", write),
+    filelib:ensure_dir(?DIR),
     lists:foreach(fun(X) -> io:format(File, "~p~n", [X]) end, List),
     file:close(File).
 
