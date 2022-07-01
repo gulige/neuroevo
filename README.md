@@ -21,7 +21,7 @@ Please see the LICENSE file that accompanies this project for the terms of use.
 Build
 -----
 
-    $ rebar3 compile
+    $ rebar3 release -n neuroevo
 
 Run
 -----
