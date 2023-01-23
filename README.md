@@ -32,5 +32,5 @@ Assuming user id is 100 (integer),
 polis:sync(). % recompile and load all the modules  
 polis:reset(). % create the mnesia database  
 polis:start(100). % start the polis process  
-population_monitor:start(100).  
-visor:start(100).
+population_monitor:start(100). % start population monitor process to kick off evolution  
+visor:start(100). % start a GUI tool to observe  
