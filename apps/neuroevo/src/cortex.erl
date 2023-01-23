@@ -50,6 +50,9 @@ loop(Id, ExoSelf_PId, SPIds, {[APId|APIds], MAPIds}, NPIds, CycleAcc, FitnessAcc
                 false ->
                     cortex:loop(Id, ExoSelf_PId, SPIds, {APIds, MAPIds}, NPIds, CycleAcc, FitnessAcc + Fitness, EFAcc + EndFlag, active)
             end;
+        {ExoSelf_PId, terminate} ->
+            ?DBG("Cortex:~p is terminating.~n", [Id]),
+            ok;
         terminate -> % 不会收到这个消息
             ?DBG("Cortex:~p is terminating.~n", [Id]),
             [PId ! {self(), terminate} || PId <- SPIds],

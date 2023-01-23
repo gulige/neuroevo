@@ -5,6 +5,8 @@
 -include("records.hrl").
 
 -record(state, {
+    user_id, % 所属用户id
+    host_id, % 宿主用户id
     agent_id, % 个体id（exoself进程即代理进程，见population_monitor:summon_agents）
     morphology, % 形态
     generation, % 第几代
@@ -33,24 +35,28 @@
     cep_pids = [] % 连通性表达构建者进程id列表
 }).
 
-start(Agent_Id) ->
-    case whereis(population_monitor) of
+start(Agent_Id, UserId) ->
+    PopMonName = <<"population_monitor_", (integer_to_binary(UserId))/binary>>,
+    case gproc:where({n, l, PopMonName}) of
         undefined ->
             ?ERR("start(Agent_Id): 'population_monitor' is not registered~n", []);
-        PId ->
-            start(Agent_Id, PId)
+        PopMon_PId ->
+            start(Agent_Id, PopMon_PId, UserId)
     end.
 
-% The start/2 function spawns a new Agent_Id exoself process, belonging to the population_monitor process with the pid PM_PId.
-start(Agent_Id, PM_PId) ->
-    spawn(exoself, prep, [Agent_Id, PM_PId]).
+% The start/3 function spawns a new Agent_Id exoself process, belonging to the population_monitor process with the pid PM_PId.
+start(Agent_Id, PM_PId, UserId) ->
+    start(Agent_Id, PM_PId, UserId, UserId).
+
+start(Agent_Id, PM_PId, UserId, HostId) ->
+    spawn(exoself, prep, [Agent_Id, PM_PId, UserId, HostId]).
 
 % The prep/2 function prepares and sets up the exoself's state before dropping into the main loop. The function first reads the agent and
 % cortex records belonging to the Agent_Id NN based system. The function then reads the sensor, actuator, and neuron ids, then spawns
 % the private scapes using the spawn_Scapes/3 function, spawns the cortex, sensor, actuator, and neuron processes, and then finally
 % links up all these processes together using the link_.../2 processes. Once the phenotype has been generated from the genotype,
 % the exoself drops into its main loop.
-prep(Agent_Id, PM_PId) ->
+prep(Agent_Id, PM_PId, UserId, HostId) ->
     ?DBG("Spawning:~p~n", [self()]),
     rand:seed(exs64, util:now()),
     IdsNPIds = ets:new(idsNpids, [set, private]),
@@ -60,7 +66,7 @@ prep(Agent_Id, PM_PId) ->
     SIds = Cx#cortex.sensor_ids,
     AIds = Cx#cortex.actuator_ids,
     NIds = Cx#cortex.neuron_ids,
-    {Private_ScapePIds, Public_ScapePIds} = spawn_Scapes(IdsNPIds, SIds, AIds, Agent_Id),
+    {Private_ScapePIds, Public_ScapePIds} = spawn_Scapes(IdsNPIds, SIds, AIds, Agent_Id, UserId, HostId),
     spawn_CerebralUnits(IdsNPIds, cortex, [Cx#cortex.id]),
     spawn_CerebralUnits(IdsNPIds, sensor, SIds),
     spawn_CerebralUnits(IdsNPIds, actuator, AIds),
@@ -92,14 +98,16 @@ prep(Agent_Id, PM_PId) ->
             CEP_PIds = [],
             Substrate_PId = undefined
     end,
-    link_Sensors(SIds, IdsNPIds),
-    link_Actuators(AIds, IdsNPIds),
+    link_Sensors(SIds, IdsNPIds, UserId),
+    link_Actuators(AIds, IdsNPIds, UserId),
     link_Neurons(NIds, IdsNPIds, HeredityType),
     {SPIds, NPIds, APIds} = link_Cortex(Cx, IdsNPIds),
     Cx_PId = ets:lookup_element(IdsNPIds, Cx#cortex.id, 2),
     {TuningDurationFunction, Parameter} = A#agent.tuning_duration_f,
     Morphology = (A#agent.constraint)#constraint.morphology,
     S = #state{
+        user_id = UserId,
+        host_id = HostId,
         agent_id = Agent_Id,
         morphology = Morphology,
         generation = A#agent.generation,
@@ -147,7 +155,20 @@ prep(Agent_Id, PM_PId) ->
 % that there is no annealing, and when set to a value less than 1, decreases the Spread. Once this list of elements is composed,
 % the exoself sends each of the neurons a message to perturb their synaptic weights using the Spread value. The exoself then reactivates
 % the cortex, and drops back into its main loop.
-loop(S) ->
+loop(#state{pm_pid = none} = S) ->
+    receive
+        {Cx_PId, evaluation_completed, Fitness, Cycles, Time, GoalReachedFlag} -> % 经过NN的若干轮Sense-Think-Act后，该组权重评估完成
+            terminate_phenotype(S#state.cx_pid, S#state.spids, S#state.npids, S#state.apids,
+                                S#state.private_scape_pids, S#state.public_scape_pids,
+                                S#state.cpp_pids, S#state.cep_pids, S#state.substrate_pid),
+            die;
+        {none, terminate} ->
+            terminate_phenotype(S#state.cx_pid, S#state.spids, S#state.npids, S#state.apids,
+                                S#state.private_scape_pids, S#state.public_scape_pids,
+                                S#state.cpp_pids, S#state.cep_pids, S#state.substrate_pid),
+            terminate
+    end;
+loop(#state{pm_pid = PopMon_PId} = S) ->
     receive
         {Cx_PId, evaluation_completed, Fitness, Cycles, Time, GoalReachedFlag} -> % 经过NN的若干轮Sense-Think-Act后，该组权重评估完成
             %?DBG("E Msg:~p~n E State:~p~n", [{Cx_PId, evaluation_completed, Fitness, Cycles, Time, GoalReachedFlag}, S]),
@@ -175,7 +196,7 @@ loop(S) ->
                             ok
                     end
             end,
-            ?DBG("HighestFitness:~p U_Attempt:~p~n", [U_HighestFitness, U_Attempt]),
+            ?DBG("HighestFitness:~p U_Attempt:~p MaxAttempts:~p~n", [U_HighestFitness, U_Attempt, S#state.max_attempts]),
             U_CycleAcc = S#state.cycle_acc + Cycles,
             U_TimeAcc = S#state.time_acc + Time,
             U_EvalAcc = S#state.eval_acc + 1,
@@ -187,8 +208,8 @@ loop(S) ->
                     genotype:write(A#agent{fitness = U_HighestFitness}),
                     backup_genotype(S#state.idsNpids, S#state.npids),
                     terminate_phenotype(S#state.cx_pid, S#state.spids, S#state.npids, S#state.apids,
-                                        S#state.private_scape_pids, S#state.cpp_pids, S#state.cep_pids,
-                                        S#state.substrate_pid),
+                                        S#state.private_scape_pids, S#state.public_scape_pids,
+                                        S#state.cpp_pids, S#state.cep_pids, S#state.substrate_pid),
                     ?INFO("Agent:~p terminating. Genotype has been backed up.~n Fitness:~p~n TotEvaluations:~p~n TotCycles:~p~n TimeAcc:~p~n",
                           [self(), U_HighestFitness, U_EvalAcc, U_CycleAcc, U_TimeAcc]),
                     case GoalReachedFlag of
@@ -200,12 +221,14 @@ loop(S) ->
                     gen_server:cast(S#state.pm_pid, {S#state.agent_id, terminated, U_HighestFitness});
                 false -> % Continue training（调整权重）
                     %?DBG("exoself state:~p~n", [S]),
+                    ?DBG("reenter_PublicScape: ~p", [self()]),
                     reenter_PublicScape(S#state.public_scape_pids,
                                         [genotype:dirty_read({sensor, ets:lookup_element(IdsNPIds, PId, 2)}) || PId <- S#state.spids],
                                         [genotype:dirty_read({actuator, ets:lookup_element(IdsNPIds, PId, 2)}) || PId <- S#state.apids],
                                         S#state.specie_id,
                                         S#state.morphology,
-                                        length(S#state.nids)),
+                                        length(S#state.nids),
+                                        S#state.user_id),
                     TuningSelectionFunction = S#state.tuning_selection_f,
                     PerturbationRange = S#state.perturbation_range,
                     AnnealingParameter = S#state.annealing_parameter,
@@ -222,7 +245,13 @@ loop(S) ->
                         highest_fitness = U_HighestFitness
                     },
                     exoself:loop(U_S)
-            end
+            end;
+        {none, terminate} ->
+            exoself:loop(S);
+        {PopMon_PId, terminate} ->
+            terminate_phenotype(S#state.cx_pid, S#state.spids, S#state.npids, S#state.apids,
+                                S#state.private_scape_pids, S#state.public_scape_pids,
+                                S#state.cpp_pids, S#state.cep_pids, S#state.substrate_pid)
         %after 10000 ->
         %    ?ERR("exoself:~p stuck.~n", [S#state.agent_id])
     end.
@@ -240,19 +269,19 @@ spawn_CerebralUnits(IdsNPIds, _CerebralUnitType, []) ->
 
 % The spawn_Scapes/3 function first extracts all the scapes that the sensors and actuators interface with, it then creates a filtered scape list
 % which only holds unique scape records, after which it further only selects those scapes that are private, and spawns them.
-spawn_Scapes(IdsNPIds, Sensor_Ids, Actuator_Ids, Agent_Id) ->
+spawn_Scapes(IdsNPIds, Sensor_Ids, Actuator_Ids, Agent_Id, UserId, HostId) ->
     Sensor_Scapes = [(genotype:dirty_read({sensor, Id}))#sensor.scape || Id <- Sensor_Ids],
     Actuator_Scapes = [(genotype:dirty_read({actuator, Id}))#actuator.scape || Id <- Actuator_Ids], 
     Unique_Scapes = Sensor_Scapes ++ (Actuator_Scapes -- Sensor_Scapes),
     Private_SN_Tuples = [{scape:gen(self(), node()), ScapeName} || {private, ScapeName} <- Unique_Scapes],
-    [ets:insert(IdsNPIds, {ScapeName, PId}) || {PId, ScapeName} <- Private_SN_Tuples],
-    [ets:insert(IdsNPIds, {PId, ScapeName}) || {PId, ScapeName} <- Private_SN_Tuples],
+    [ets:insert(IdsNPIds, {{UserId, ScapeName}, PId}) || {PId, ScapeName} <- Private_SN_Tuples],
+    [ets:insert(IdsNPIds, {PId, {UserId, ScapeName}}) || {PId, ScapeName} <- Private_SN_Tuples],
     [PId ! {self(), ScapeName} || {PId, ScapeName} <- Private_SN_Tuples], % 告诉Scape进程承载ScapeName这个场景
-    PublicScapePIds = enter_PublicScape(IdsNPIds, Sensor_Ids, Actuator_Ids, Agent_Id),
+    PublicScapePIds = enter_PublicScape(IdsNPIds, Sensor_Ids, Actuator_Ids, Agent_Id, UserId, HostId),
     PrivateScapePIds = [PId || {PId, _ScapeName} <- Private_SN_Tuples],
     {PrivateScapePIds, PublicScapePIds}.
 
-enter_PublicScape(IdsNPIds, Sensor_Ids, Actuator_Ids, Agent_Id) ->
+enter_PublicScape(IdsNPIds, Sensor_Ids, Actuator_Ids, Agent_Id, UserId, HostId) ->
     A = genotype:dirty_read({agent, Agent_Id}),
     Sensors = [genotype:dirty_read({sensor, Id}) || Id <- Sensor_Ids],
     Actuators = [genotype:dirty_read({actuator, Id}) || Id <- Actuator_Ids],
@@ -260,29 +289,31 @@ enter_PublicScape(IdsNPIds, Sensor_Ids, Actuator_Ids, Agent_Id) ->
     Morphology = (A#agent.constraint)#constraint.morphology,
     Sensor_Scapes = [Sensor#sensor.scape || Sensor <- Sensors],
     Actuator_Scapes = [Actuator#actuator.scape || Actuator <- Actuators],
-    Unique_Scapes = Sensor_Scapes ++ (Actuator_Scapes -- Sensor_Scapes),
-    Public_SN_Tuples = [{gen_server:call(polis, {get_scape, ScapeName}), ScapeName} || {public, ScapeName} <- Unique_Scapes],
-    [ets:insert(IdsNPIds, {ScapeName, PId}) || {PId, ScapeName} <- Public_SN_Tuples],
-    [ets:insert(IdsNPIds, {PId, ScapeName}) || {PId, ScapeName} <- Public_SN_Tuples],
-    [gen_server:call(PId, {enter, Morphology, A#agent.specie_id, Sensors, Actuators, TotNeurons, self()}) ||
+    Unique_Scapes = lists:usort(Sensor_Scapes ++ (Actuator_Scapes -- Sensor_Scapes)),
+    PolisName = <<"polis_", (integer_to_binary(HostId))/binary>>,
+    Polis_PId = gproc:where({n, l, PolisName}),
+    Public_SN_Tuples = [{gen_server:call(Polis_PId, {get_scape, ScapeName}), ScapeName} || {public, ScapeName} <- Unique_Scapes],
+    [ets:insert(IdsNPIds, {{UserId, ScapeName}, PId}) || {PId, ScapeName} <- Public_SN_Tuples],
+    [ets:insert(IdsNPIds, {PId, {UserId, ScapeName}}) || {PId, ScapeName} <- Public_SN_Tuples],
+    [gen_server:call(PId, {enter, Morphology, A#agent.specie_id, Sensors, Actuators, TotNeurons, self(), UserId}) ||
        {PId, ScapeName} <- Public_SN_Tuples],
     [PId || {PId, _ScapeName} <- Public_SN_Tuples].
 
-reenter_PublicScape([PS_PId|PS_PIds], Sensors, Actuators, Specie_Id, Morphology, TotNeurons) ->
-    gen_server:call(PS_PId, {enter, Morphology, Specie_Id, Sensors, Actuators, TotNeurons, self()}),
-    reenter_PublicScape(PS_PIds, Sensors, Actuators, Specie_Id, Morphology, TotNeurons);
-reenter_PublicScape([], _Sensors, _Actuators, _Specie_Id, _Morphology, _TotNeurons) ->
+reenter_PublicScape([PS_PId|PS_PIds], Sensors, Actuators, Specie_Id, Morphology, TotNeurons, UserId) ->
+    gen_server:call(PS_PId, {enter, Morphology, Specie_Id, Sensors, Actuators, TotNeurons, self(), UserId}),
+    reenter_PublicScape(PS_PIds, Sensors, Actuators, Specie_Id, Morphology, TotNeurons, UserId);
+reenter_PublicScape([], _Sensors, _Actuators, _Specie_Id, _Morphology, _TotNeurons, _UserId) ->
     ok.
 
 leave_PublicScape([PS_PId|PS_PIds]) ->
-    gen_server:call(PS_PId, {leave, self()}),
+    gen_server:cast(PS_PId, {leave, self()}),
     leave_PublicScape(PS_PIds);
 leave_PublicScape([]) ->
     ok.
 
 % The link_Sensors/2 function sends to the already spawned and waiting sensors their states, composed of the PId lists and other information
 % which are needed by the sensors to link up and interface with other elements in the distributed phenotype.
-link_Sensors([SId|Sensor_Ids], IdsNPIds) ->
+link_Sensors([SId|Sensor_Ids], IdsNPIds, UserId) ->
     S = genotype:dirty_read({sensor, SId}),
     SPId = ets:lookup_element(IdsNPIds, SId, 2),
     Cx_PId = ets:lookup_element(IdsNPIds, S#sensor.cx_id, 2),
@@ -291,19 +322,19 @@ link_Sensors([SId|Sensor_Ids], IdsNPIds) ->
     Fanout_PIds = [ets:lookup_element(IdsNPIds, Id, 2) || Id <- Fanout_Ids],
     Scape = case S#sensor.scape of
         {private, ScapeName} ->
-            ets:lookup_element(IdsNPIds, ScapeName, 2);
+            ets:lookup_element(IdsNPIds, {UserId, ScapeName}, 2);
         {public, ScapeName} ->
-            ets:lookup_element(IdsNPIds, ScapeName, 2)
+            ets:lookup_element(IdsNPIds, {UserId, ScapeName}, 2)
     end,
     % 向传感器进程发送初始状态消息：{ExoSelf_PId, {Id, Cx_PId, Scape, SensorName, VL, Parameters, Fanout_PIds}}
     SPId ! {self(), {SId, Cx_PId, Scape, SName, S#sensor.vl, S#sensor.parameters, Fanout_PIds}},
-    link_Sensors(Sensor_Ids, IdsNPIds);
-link_Sensors([], _IdsNPIds) ->
+    link_Sensors(Sensor_Ids, IdsNPIds, UserId);
+link_Sensors([], _IdsNPIds, _UserId) ->
     ok.
 
 % The link_Actuators/2 function sends to the already spawned and waiting actuators their states, composed of the PId lists and other information
 % which are needed by the actuators to link up and interface with other elements in the distributed phenotype.
-link_Actuators([AId|Actuator_Ids], IdsNPIds) ->
+link_Actuators([AId|Actuator_Ids], IdsNPIds, UserId) ->
     A = genotype:dirty_read({actuator, AId}),
     APId = ets:lookup_element(IdsNPIds, AId, 2),
     Cx_PId = ets:lookup_element(IdsNPIds, A#actuator.cx_id, 2),
@@ -312,14 +343,14 @@ link_Actuators([AId|Actuator_Ids], IdsNPIds) ->
     Fanin_PIds = [ets:lookup_element(IdsNPIds, Id, 2) || Id <- Fanin_Ids],
     Scape = case A#actuator.scape of
         {private, ScapeName} ->
-            ets:lookup_element(IdsNPIds, ScapeName, 2);
+            ets:lookup_element(IdsNPIds, {UserId, ScapeName}, 2);
         {public, ScapeName} ->
-            ets:lookup_element(IdsNPIds, ScapeName, 2)
+            ets:lookup_element(IdsNPIds, {UserId, ScapeName}, 2)
     end,
     % 向执行器进程发送初始状态消息：{ExoSelf_PId, {Id, Cx_PId, Scape, ActuatorName, VL, Parameters, Fanin_PIds}}
     APId ! {self(), {AId, Cx_PId, Scape, AName, A#actuator.vl, A#actuator.parameters, Fanin_PIds}},
-    link_Actuators(Actuator_Ids, IdsNPIds);
-link_Actuators([], _IdsNPIds) ->
+    link_Actuators(Actuator_Ids, IdsNPIds, UserId);
+link_Actuators([], _IdsNPIds, _UserId) ->
     ok.
 
 % The link_SubstrateCPPs/3 function sends to the already spawned and waiting substrate_cpps their states, composed of the PId lists
@@ -435,13 +466,14 @@ convert_PIdPs2IdPs(_IdsNPIds, [], Acc) ->
 
 % The terminate_phenotype/5 function termiantes sensors, actuators, neurons, all private scapes, and the cortex which composes the NN based system.
 % ScapePIds：private_scape_pids
-terminate_phenotype(Cx_PId, SPIds, NPIds, APIds, ScapePIds, CPP_PIds, CEP_PIds, Substrate_PId) ->
-    ?DBG("Terminating the phenotype:~nCx_PId:~p~nSPIds:~p~nNPIds:~p~nAPIds:~p~nScapePids:~p~n",
-         [Cx_PId, SPIds, NPIds, APIds, ScapePIds]),
+terminate_phenotype(Cx_PId, SPIds, NPIds, APIds, ScapePIds, PublicScapePIds, CPP_PIds, CEP_PIds, Substrate_PId) ->
+    ?DBG("Terminating the phenotype:~nCx_PId:~p~nSPIds:~p~nNPIds:~p~nAPIds:~p~nScapePids:~p~nPublicScapePids:~p~n",
+         [Cx_PId, SPIds, NPIds, APIds, ScapePIds, PublicScapePIds]),
     [PId ! {self(), terminate} || PId <- SPIds],
     [PId ! {self(), terminate} || PId <- APIds],
     [PId ! {self(), terminate} || PId <- NPIds],
     [PId ! {self(), terminate} || PId <- ScapePIds],
+    leave_PublicScape(PublicScapePIds),
     case Substrate_PId =:= undefined of
         true ->
             ok;

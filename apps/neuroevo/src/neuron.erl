@@ -147,7 +147,7 @@ loop(S, ExoSelf_PId, [SI_PId|SI_PIds], [MI_PId|MI_PIds], SIAcc, MIAcc) ->
         {ExoSelf_PId, terminate} ->
             ?DBG("Neuron:~p is terminating.~n", [self()]),
             ok
-    after 10000 ->
+    after 60000 ->
         ?ERR("neuron:~p stuck.~n", [S#state.id])
     end.
 

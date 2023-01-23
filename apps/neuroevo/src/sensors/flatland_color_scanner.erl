@@ -8,15 +8,19 @@
 -include("flatland.hrl").
 
 sense(Exoself_PId, VL, [Spread, Density, RadialOffset], Scape) ->
-    case gen_server:call(Scape, {get_all, avatars, Exoself_PId}) of
+    case gen_server:call(Scape, {sense, Exoself_PId, avatars}, 60000) of
         destroyed ->
             lists:duplicate(VL, -1);
         Avatars ->
-            Self = lists:keyfind(Exoself_PId, 2, Avatars),
-            Loc = Self#avatar.loc,
-            Direction = Self#avatar.direction,
-            Result = color_scanner(silent, {1,0,0}, Density, Spread, Loc, Direction, lists:keydelete(Exoself_PId, 2, Avatars)),
-            Result
+            case lists:keyfind(Exoself_PId, 2, Avatars) of
+                false ->
+                    lists:duplicate(VL, -1);
+                Self ->
+                    Loc = Self#avatar.loc,
+                    Direction = Self#avatar.direction,
+                    Result = color_scanner(silent, {1,0,0}, Density, Spread, Loc, Direction, lists:keydelete(Exoself_PId, 2, Avatars)),
+                    Result
+            end
     end.
 
 % Input: ViewAngle=Radian, Density=n, Gaze direction={SensorLoc,Direction}.

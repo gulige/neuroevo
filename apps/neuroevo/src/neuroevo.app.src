@@ -6,14 +6,16 @@
   {applications,
    [kernel,
     stdlib,
+    sasl,
     mnesia,
     tools,
     lager,
     gs,
+    gproc,
     ne_common
    ]},
   {env,[]},
-  {modules, []},
+  {modules, [polis]},
 
   {maintainers, []},
   {licenses, ["Apache 2.0"]},

@@ -113,7 +113,7 @@ breed(Valid_AgentIds, OffspringIndex, Acc) ->
 competition(ProperlySorted_AgentSummaries) ->
     TotEnergy = lists:sum([Fitness || {Fitness, _TotN, _Agent_Id} <- ProperlySorted_AgentSummaries]),
     TotNeurons = lists:sum([TotN || {_Fitness, TotN, _Agent_Id} <- ProperlySorted_AgentSummaries]),
-    NeuralEnergyCost = TotEnergy / TotNeurons,
+    NeuralEnergyCost = TotEnergy / TotNeurons + 0.001,
     {AlotmentsP, NextGenTotalSize} = calculate_alotments(ProperlySorted_AgentSummaries, NeuralEnergyCost, [], 0),
     Choice = rand:uniform(),
     {WinnerFitness, WinnerTotN, WinnerAgent_Id} =

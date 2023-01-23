@@ -1,9 +1,21 @@
 {"1.1.0",
 [{<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.9">>},1},
+ {<<"gproc">>,
+  {git,"https://github.com/uwiger/gproc.git",
+       {ref,"946cf5a1e36fe860fbdb2c14f542f7f0fa35f558"}},
+  0},
  {<<"lager">>,
   {git,"https://github.com/erlang-lager/lager.git",
        {ref,"d0a9db3b7aff9a46809e037c73a5b6d70db83ab9"}},
-  0}]}.
+  0},
+ {<<"mnesia_cluster">>,
+  {git,"https://github.com/russagit/mnesia_cluster.git",
+       {ref,"af87fd5cf367825a039a444d7aa9c4028e141ed3"}},
+  0},
+ {<<"reunion">>,
+  {git,"https://github.com/snar/reunion.git",
+       {ref,"84e3627c2df2f5f19a7f1fa6850e6f431762f36b"}},
+  1}]}.
 [
 {pkg_hash,[
  {<<"goldrush">>, <<"F06E5D5F1277DA5C413E84D5A2924174182FB108DABB39D5EC548B27424CD106">>}]}

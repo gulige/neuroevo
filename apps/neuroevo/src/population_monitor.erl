@@ -7,7 +7,7 @@
 -behaviour(gen_server).
 
 %% 启停API
--export([start_link/1, start_link/0, start/1, start/0, stop/0, init/2]).
+-export([start_link/2, start_link/1, start/2, start/1, stop/1, init/2]).
 
 %% 功能API
 -export([extract_AgentIds/2,
@@ -38,6 +38,8 @@
                      substrate_linkforms = [l2l_feedforward]} ||
          Morphology <- Morphologies, CA <- [recurrent]]).
 
+-define(SPECIE_ACTIVE_SIZE_LIMIT, 10).
+
 -record(state, {
     op_mode = gt, % 运作模式：standard，throughput，gt（genetic tuning）
     population_id = test,
@@ -60,10 +62,10 @@
     best_fitness,
     survival_percentage = 0.5, % 选择阶段，允许多少比例的人口存活下去
     specie_size_limit = 10, % 每一个物种内的原型数量限制
-    init_specie_size = 10, % 初始的物种内的原型数量
+    init_specie_size = ?SPECIE_ACTIVE_SIZE_LIMIT, % 初始的物种内的原型数量
     polis_id = mathema, % 城邦id
     generation_limit = 100, % 针对pop_gen
-    evaluations_limit = 100000, % 针对tot_evaluations
+    evaluations_limit = inf, % 针对tot_evaluations
     fitness_goal = inf,
     benchmarker_pid,
     goal_reached = false
@@ -77,23 +79,30 @@
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
-start_link(Start_Parameters) ->
-    gen_server:start_link(?MODULE, Start_Parameters, []).
+start_link(UserId, Start_Parameters) ->
+    gen_server:start_link(?MODULE, {UserId, Start_Parameters}, []).
 
-start_link() ->
-    gen_server:start_link(?MODULE, [], []).
+start_link(UserId) ->
+    gen_server:start_link(?MODULE, {UserId, []}, []).
 
-start(Start_Parameters) -> 
-    gen_server:start(?MODULE, Start_Parameters, []).
+start(UserId, Start_Parameters) ->
+    gen_server:start(?MODULE, {UserId, Start_Parameters}, []).
 
 % Starts the population monitor through init_population/2 with a set of default parameters specified by the macros of this module.
-start() ->
+start(UserId) ->
     {ok, Cfg} = application:get_env(neuroevo, population_monitor),
     {_, Morphologies} = lists:keyfind(morphologies, 1, Cfg),
-    init_population(#state{}, ?INIT_CONSTRAINTS(Morphologies)).
+    init_population(#state{population_id = UserId}, ?INIT_CONSTRAINTS(Morphologies)).
 
-stop() ->
-    gen_server:cast(population_monitor, {stop, normal}).
+stop(UserId) ->
+    PopMonName = <<"population_monitor_", (integer_to_binary(UserId))/binary>>,
+    case gproc:where({n, l, PopMonName}) of
+        undefined ->
+            ?INFO("PopMon for user=~p cannot be stopped, it is not online.~n", [UserId]);
+        PopMon_PId ->
+            gproc:unreg_other({n, l, PopMonName}, PopMon_PId),
+            gen_server:cast(PopMon_PId, {stop, normal})
+    end.
 
 init(Pid, InitState) ->
     gen_server:cast(Pid, {init, InitState}).
@@ -114,14 +123,15 @@ init(Pid, InitState) ->
 % Each agent is then spawned/activated, converted from genotype to phenotype in the summon_agents/2 function. The summon_agents/2 function
 % summons the agents and returns to the caller a list of tuples with the following format: [{Agent_Id, Agent_PId}...]. Once the state record's
 % parameters have been set, the function drops into the main gen_server loop.
-init(S) ->
+init({UserId, S}) ->
     process_flag(trap_exit, true),
-    register(population_monitor, self()),
+    PopMonName = <<"population_monitor_", (integer_to_binary(UserId))/binary>>,
+    gproc:reg({n, l, PopMonName}, self()),
     Population_Id = S#state.population_id,
     OpMode = S#state.op_mode,
     ?INFO("******** Population monitor started with parameters:~p~n", [S]),
     Agent_Ids = extract_AgentIds(Population_Id, all),
-    ActiveAgent_IdPs = summon_agents(OpMode, Agent_Ids),
+    ActiveAgent_IdPs = summon_agents(OpMode, Agent_Ids, UserId),
     P = genotype:dirty_read({population, Population_Id}),
     [put({evaluations, Specie_Id}, 0) || Specie_Id <- P#population.specie_ids],
     T = P#population.trace,
@@ -213,7 +223,7 @@ handle_cast({Agent_Id, terminated, Fitness}, #state{evolutionary_algorithm = gen
                             {stop, normal, U_S};
                         false -> % in progress
                             Agent_Ids = extract_AgentIds(Population_Id, all),
-                            U_ActiveAgent_IdPs = summon_agents(OpMode, Agent_Ids),
+                            U_ActiveAgent_IdPs = summon_agents(OpMode, Agent_Ids, Population_Id),
                             TotAgents = length(Agent_Ids),
                             U_S = S#state{activeAgent_IdPs = U_ActiveAgent_IdPs, tot_agents = TotAgents, agents_left = TotAgents, pop_gen = U_PopGen},
                             {noreply, U_S}
@@ -295,12 +305,12 @@ handle_cast({Agent_Id, terminated, Fitness}, #state{evolutionary_algorithm = ste
             ActiveAgent_IdP = case rand:uniform() < 0.1 of
                 true -> % 10%的概率，直接使用选中的原型
                     U_DeadPool_AgentSummaries = lists:delete({WinnerFitness, WinnerProfile, WinnerAgent_Id}, Valid_AgentSummaries),
-                    WinnerAgent_PId = exoself:start(WinnerAgent_Id, self()),
+                    WinnerAgent_PId = exoself:start(WinnerAgent_Id, self(), Population_Id),
                     {WinnerAgent_Id, WinnerAgent_PId};
                 false -> % 90%的概率，创建变异体
                     U_DeadPool_AgentSummaries = Valid_AgentSummaries,
                     CloneAgent_Id = create_MutantAgentCopy(WinnerAgent_Id, safe),
-                    CloneAgent_PId = exoself:start(CloneAgent_Id, self()),
+                    CloneAgent_PId = exoself:start(CloneAgent_Id, self(), Population_Id),
                     {CloneAgent_Id, CloneAgent_PId}
             end,
             Top_AgentSummaries = lists:sublist(U_DeadPool_AgentSummaries, round(SpecieSizeLimit * SurvivalPercentage)),
@@ -329,7 +339,7 @@ handle_cast({op_tag, continue}, S) when S#state.op_tag =:= pause ->
     Population_Id = S#state.population_id,
     OpMode = S#state.op_mode,
     Agent_Ids = extract_AgentIds(Population_Id, all),
-    U_ActiveAgent_IdPs = summon_agents(OpMode, Agent_Ids),
+    U_ActiveAgent_IdPs = summon_agents(OpMode, Agent_Ids, Population_Id),
     TotAgents = length(Agent_Ids),
     U_S = S#state{activeAgent_IdPs = U_ActiveAgent_IdPs, tot_agents = TotAgents, agents_left = TotAgents, op_tag = continue},
     {noreply, U_S};
@@ -400,6 +410,8 @@ terminate(Reason, S) ->
         [] ->
             ?INFO("******** Population_Monitor shut down with Reason:~p, with State: []~n", [Reason]);
         _ ->
+            ActiveAgent_IdPs = S#state.activeAgent_IdPs,
+            [Agent_PId ! {self(), terminate} || {_Agent_Id, Agent_PId} <- ActiveAgent_IdPs],
             OpMode = S#state.op_mode,
             OpTag = S#state.op_tag,
             TotEvaluations = S#state.tot_evaluations,
@@ -465,20 +477,32 @@ extract_ChampionAgentIds([], Acc) ->
 extract_AllAgentIds([Specie_Id|Specie_Ids], Acc) ->
     S = genotype:dirty_read({specie, Specie_Id}),
     AllAgent_Ids = S#specie.agent_ids,
-    extract_AllAgentIds(Specie_Ids, lists:append(AllAgent_Ids, Acc));
+    ActiveSize = length(AllAgent_Ids),
+    case ActiveSize > ?SPECIE_ACTIVE_SIZE_LIMIT of
+        true ->
+            {KeepAgent_Ids, DelAgent_Ids} = lists:split(?SPECIE_ACTIVE_SIZE_LIMIT, AllAgent_Ids),
+            genotype:write(S#specie{agent_ids = KeepAgent_Ids}),
+            [case lists:keymember(Agent_Id, 3, S#specie.dead_pool) of
+                 true -> void;
+                 false -> genotype:delete_Agent(Agent_Id, safe)
+             end || Agent_Id <- DelAgent_Ids],
+            extract_AllAgentIds(Specie_Ids, lists:append(KeepAgent_Ids, Acc));
+        false ->
+            extract_AllAgentIds(Specie_Ids, lists:append(AllAgent_Ids, Acc))
+    end;
 extract_AllAgentIds([], Acc) ->
     Acc.
 
 % The summon_agents/2 and summon_agents/3 spawns all the agents in the Agent_ids list, and returns to the caller a list of tuples as follows:
 % [{Agent_Id,Agent_PId}...].
-summon_agents(OpMode, Agent_Ids) ->
-    summon_agents(OpMode, Agent_Ids, []).
+summon_agents(OpMode, Agent_Ids, Population_Id) ->
+    summon_agents(OpMode, Agent_Ids, Population_Id, []).
 
-summon_agents(OpMode, [Agent_Id|Agent_Ids], Acc) ->
+summon_agents(OpMode, [Agent_Id|Agent_Ids], Population_Id, Acc) ->
     ?DBG("Agent_Id:~p~n", [Agent_Id]),
-    Agent_PId = exoself:start(Agent_Id, self()),
-    summon_agents(OpMode, Agent_Ids, [{Agent_Id, Agent_PId}|Acc]);
-summon_agents(_OpMode, [], Acc) ->
+    Agent_PId = exoself:start(Agent_Id, self(), Population_Id),
+    summon_agents(OpMode, Agent_Ids, Population_Id, [{Agent_Id, Agent_PId}|Acc]);
+summon_agents(_OpMode, [], _Population_Id, Acc) ->
     Acc.
 
 % 注意区别：start/0里调用init_population时传入的State是默认构造的#state{}，传入的Specie_Constraints是依据配置文件中的morphologies构造而成
@@ -506,18 +530,24 @@ init_population(Init_State, Specie_Constraints) ->
     rand:seed(exs64, util:now()),
     Population_Id = Init_State#state.population_id,
     OpMode = Init_State#state.op_mode,
+    %F = fun() ->
+    %    case genotype:read({population, Population_Id}) of
+    %        undefined -> void;
+    %        _ -> delete_population(Population_Id)
+    %    end,
+    %    create_Population(Population_Id, Init_State#state.init_specie_size, Specie_Constraints)
+    %end,
     F = fun() ->
         case genotype:read({population, Population_Id}) of
-            undefined -> void;
-            _ -> delete_population(Population_Id)
-        end,
-        create_Population(Population_Id, Init_State#state.init_specie_size, Specie_Constraints)
+            undefined -> create_Population(Population_Id, Init_State#state.init_specie_size, Specie_Constraints);
+            _ -> void
+        end
     end,
     Result = mnesia:transaction(F),
     case Result of
         {atomic, _} ->
             % 开启gen_server进程
-            population_monitor:start(Init_State);
+            population_monitor:start(Population_Id, Init_State);
         Error ->
             ?ERR("******** ERROR in PopulationMonitor:~p~n", [Error])
     end.
@@ -571,13 +601,13 @@ continue() ->
     rand:seed(exs64, util:now()),
     S = #state{op_mode = [gt, benchmark]},
     % 开启gen_server进程
-    population_monitor:start(S).
+    population_monitor:start(test, S).
 
 continue(Population_Id) ->
     rand:seed(exs64, util:now()),
     S = #state{population_id = Population_Id, op_mode = [gt, benchmark]},
     % 开启gen_server进程
-    population_monitor:start(S).
+    population_monitor:start(Population_Id, S).
 
 % The function mutate_population/4 mutates the agents within every specie in its specie_ids list, maintaining each specie within the size of
 % KeepTot. The function first calculates the average cost of each neuron, and then calls each specie seperately with the Fitness_Postprocessor

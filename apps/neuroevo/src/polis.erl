@@ -2,10 +2,13 @@
 -behaviour(gen_server).
 
 %% API
--export([sync/0, start/0, start/1, init/2, stop/0, create/0, reset/0]).
+-export([sync/0, start/1, start/2, init/2, stop/1, create/0, reset/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+
+-export([get_mnesia_tables/0]).
+-mnesia_table(get_mnesia_tables).
 
 -include_lib("ne_common/src/include/common.hrl").
 -include("records.hrl").
@@ -49,27 +52,30 @@ sync() ->
 
 % The start/0 first checks whether a polis process has already been spawned, by checking if one is registered. If it's not, then the start/1 function
 % starts up the neuroevolutionary platform.
-start() ->
-    case whereis(polis) of
+start(UserId) ->
+    PolisName = <<"polis_", (integer_to_binary(UserId))/binary>>,
+    case gproc:where({n, l, PolisName}) of
         undefined ->
-            gen_server:start(?MODULE, {?MODS, ?PUBLIC_SCAPES}, []);
+            gen_server:start(?MODULE, {UserId, {?MODS, ?PUBLIC_SCAPES}}, []);
         Polis_PId ->
-            ?INFO("Polis:~p is already running on this node.~n", [Polis_PId])
+            ?INFO("Polis:~p for user=~p is already running on this node.~n", [Polis_PId, UserId])
     end.
 
-start(Start_Parameters) ->
-    gen_server:start(?MODULE, Start_Parameters, []).
+start(UserId, Start_Parameters) ->
+    gen_server:start(?MODULE, {UserId, Start_Parameters}, []).
 
 init(Pid, InitState) ->
     gen_server:cast(Pid, {init, InitState}).
 
 % The stop/0 function first checks whether a polis process is online. If there is an online polis process running on the node, then the stop function
 % sends a signal to it requesting it to stop.
-stop() ->
-    case whereis(polis) of
+stop(UserId) ->
+    PolisName = <<"polis_", (integer_to_binary(UserId))/binary>>,
+    case gproc:where({n, l, PolisName}) of
         undefined ->
-            ?INFO("Polis cannot be stopped, it is not online.~n");
+            ?INFO("Polis for user=~p cannot be stopped, it is not online.~n", [UserId]);
         Polis_PId ->
+            gproc:unreg_other({n, l, PolisName}, Polis_PId),
             gen_server:cast(Polis_PId, {stop, normal})
     end.
 
@@ -82,14 +88,14 @@ stop() ->
 % public scapes, if any, are activated. Having called our neuroevolutionary platform polis, we give this polis a name “MATHEMA”, which is a greek word
 % for knowledge, and learning. Finally we create the initial state, which contains the Pids of the currently active public scapes, and the names of
 % the activated mods. The function then drops into the main gen_server loop.
-init({Mods, PublicScapes}) ->
+init({UserId, {Mods, PublicScapes}}) ->
     rand:seed(exs64, util:now()),
     process_flag(trap_exit, true),
-    register(polis, self()),
+    PolisName = <<"polis_", (integer_to_binary(UserId))/binary>>,
+    gproc:reg({n, l, PolisName}, self()),
     ?INFO("Parameters:~p~n", [{Mods, PublicScapes}]),
-    mnesia:start(),
     start_supmods(Mods),
-    Active_PublicScapes = start_scapes(PublicScapes, []),
+    Active_PublicScapes = start_scapes(UserId, PublicScapes, []),
     ?INFO("******** Polis: ##MATHEMA## is now online.~n"),
     InitState = #state{active_mods = Mods, active_scapes = Active_PublicScapes},
     {ok, InitState}.
@@ -143,24 +149,40 @@ code_change(_OldVsn, State, _Extra) ->
 
 % The reset/0 function deletes the schema, and recreates a fresh database from scratch.
 reset() ->
+    ?INFO("polis resetting..."),
     mnesia:stop(),
     ok = mnesia:delete_schema([node()]),
     polis:create().
 
 % The create/0 function sets up new mnesia databases composed of the agent, cortex, neuron, sensor, actuator, substrate, specie, population,
 % and experiment tables.
+% 注意：不再使用该接口，而是使用mnesia_cluster的特性，即用模块属性mnesia_table来定义表
 create() ->
-    mnesia:create_schema([node()]),
-    mnesia:start(),
-    mnesia:create_table(population, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, population)}]),
-    mnesia:create_table(specie, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, specie)}]),
-    mnesia:create_table(agent, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, agent)}]),
-    mnesia:create_table(cortex, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, cortex)}]),
-    mnesia:create_table(neuron, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, neuron)}]),
-    mnesia:create_table(sensor, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, sensor)}]),
-    mnesia:create_table(actuator, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, actuator)}]),
-    mnesia:create_table(substrate, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, substrate)}]),
-    mnesia:create_table(experiment, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, experiment)}]).
+    ?INFO("polis creating..."),
+    mnesia:stop(),
+    case mnesia:create_schema([node()]) of
+        ok ->
+            mnesia:start(),
+            [mnesia:create_table(TableName, TableOptions) || {TableName, TableOptions} <- get_mnesia_tables()],
+            ?INFO("ok"),
+            ok;
+        Err ->
+            ?INFO("~p", [Err]),
+            Err
+    end.
+
+get_mnesia_tables() ->
+    [
+     {population, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, population)}]},
+     {specie, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, specie)}]},
+     {agent, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, agent)}]},
+     {cortex, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, cortex)}]},
+     {neuron, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, neuron)}]},
+     {sensor, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, sensor)}]},
+     {actuator, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, actuator)}]},
+     {substrate, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, substrate)}]},
+     {experiment, [{disc_copies, [node()]}, {type, set}, {attributes, record_info(fields, experiment)}]}
+    ].
 
 % Start/Stop environmental modules: DBs, Environments, Network Access systems and tools...
 %
@@ -181,19 +203,19 @@ stop_supmods([ModName|ActiveMods]) ->
 stop_supmods([]) ->
     done.
 
-% The start_scapes/2 function accepts a list of scape_summary records, which specify the names of the public scapes and any parameters that with which
+% The start_scapes/3 function accepts a list of scape_summary records, which specify the names of the public scapes and any parameters that with which
 % those scapes should be started. What specifies what scape that is going to be created by the scape module is the Type that is dropped into the function.
 % Of course the scape module should already be able to create the Type of scape that is dropped into the start_link function. Once the scape is started,
 % we record the Pid in that scape_summary's record. When all the public scapes have been started, the function outputs a list of updated scape_summary
 % records.
-start_scapes([S|Scapes], Acc) ->
+start_scapes(UserId, [S|Scapes], Acc) ->
     Type = S#scape_summary.type,
     Parameters = S#scape_summary.parameters,
     Physics = S#scape_summary.physics,
     Metabolics = S#scape_summary.metabolics,
-    {ok, PId} = Type:start_link({self(), Type, Physics, Metabolics}),
-    start_scapes(Scapes, [S#scape_summary{address = PId}|Acc]);
-start_scapes([], Acc) ->
+    {ok, PId} = Type:start_link([self(), Type, Physics, Metabolics, UserId]),
+    start_scapes(UserId, Scapes, [S#scape_summary{address = PId}|Acc]);
+start_scapes(_UserId, [], Acc) ->
     lists:reverse(Acc).
 
 % The stop_scapes/1 function accepts a list of scape_summary records. The function extracts the Pid of the scape from the scape_summary, and requests for

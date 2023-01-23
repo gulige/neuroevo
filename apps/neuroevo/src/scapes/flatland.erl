@@ -35,6 +35,7 @@
 
 -record(scape, {
     id, % atom()|float()|{float()::UniqueId,scape}|{atom()::ScapeName,scape}
+    polis_pid,
     type,
     physics,
     metabolics,
@@ -81,11 +82,12 @@ init(Parameters) ->
     ?DBG("Scape Parameters:~p~n", [Parameters]),
     spawn(flatland, heartbeat, [self()]),
     InitState = case Parameters of
-        {Polis_PId, Scape_Type, Physics, Metabolics} ->
+        [Polis_PId, Scape_Type, Physics, Metabolics|_] ->
             Init_Avatars = world_init(Scape_Type, Physics, Metabolics),
             ?DBG("InitAvatars:~p~n", [Init_Avatars]),
             #scape{
                 id = self(),
+                polis_pid = Polis_PId,
                 type = Scape_Type,
                 avatars = Init_Avatars,
                 physics = Physics,
@@ -104,7 +106,7 @@ init(Parameters) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 % CT: sensors, CF: actuators
-handle_call({enter, Morphology, Specie_Id, CT, CF, TotNeurons, Exoself_PId}, {From_PId, _Ref}, State) ->
+handle_call({enter, Morphology, Specie_Id, CT, CF, TotNeurons, Exoself_PId, UserId}, {From_PId, _Ref}, State) ->
     {Reply, U_State} = case get(Exoself_PId) of
         entered ->
             ?DBG("Already Registered Citizen:~p~n", [Exoself_PId]),
@@ -129,12 +131,7 @@ handle_call({enter, Morphology, Specie_Id, CT, CF, TotNeurons, Exoself_PId}, {Fr
     end,
     {reply, Reply, U_State};
 
-handle_call({leave, Exoself_PId}, {From_PId, _Ref}, State) ->
-    U_State = destroy_avatar(Exoself_PId, State),
-    ?DBG("Avatar left:~p~n", [Exoself_PId]),
-    {reply, done, U_State};
-
-handle_call({get_all, avatars, Exoself_PId}, {From_PId, _Ref}, State) ->
+handle_call({sense, Exoself_PId, avatars}, {From_PId, _Ref}, State) ->
     Reply = case get(Exoself_PId) of
         destroyed ->
             destroyed;
@@ -144,7 +141,7 @@ handle_call({get_all, avatars, Exoself_PId}, {From_PId, _Ref}, State) ->
     {reply, Reply, State};
 
 % Command: two_wheels
-handle_call({actuator, Exoself_PId, Command, Output}, {From_PId, _Ref}, State) ->
+handle_call({act, Exoself_PId, Command, Output}, {From_PId, _Ref}, State) ->
     %?DBG("########################: ~p~n", [util:now()]),
     {FitnessP, U_State} = case get(Exoself_PId) of
         undefined ->
@@ -259,7 +256,12 @@ handle_cast(tick, State) ->
     U_Avatars = flatland:metabolics(Avatars, []),
     {noreply, State#scape{avatars = U_Avatars}};
 
-handle_cast({stop, normal}, State) ->
+handle_cast({leave, Exoself_PId}, State) ->
+    U_State = destroy_avatar(Exoself_PId, State),
+    ?DBG("Avatar left:~p~n", [Exoself_PId]),
+    {noreply, U_State};
+
+handle_cast({Polis_PId, stop, normal}, #scape{polis_pid = Polis_PId} = State) ->
     {stop, normal, State};
 
 handle_cast({stop, shutdown}, State) ->
@@ -302,7 +304,7 @@ heartbeat(Scape_PId) ->
 heartbeat(Scape_PId, Tau, Time) ->
     receive
         {update_tau, NewTau} ->
-            flatland:heartbeat(Scape_PId, Tau, Time)
+            flatland:heartbeat(Scape_PId, NewTau, Time)
     after Tau ->
         gen_server:cast(Scape_PId, tick),
         flatland:heartbeat(Scape_PId, Tau, Time + Tau)
