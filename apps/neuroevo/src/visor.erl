@@ -28,13 +28,13 @@ zo(Filter) ->
 legend() ->
     visor ! ctlegend_on.
 
-start() ->
-    spawn(visor, go, []).
+start(UserId) ->
+    spawn(visor, go, [UserId]).
 
 stop() ->
     visor ! {self(), terminate}.
 
-go() ->
+go(UserId) ->
     GS = gs:start(),
     Window = gs:create(window, GS, [{title, "Visor"}, {width, ?WIDTH}, {height, ?HEIGHT}]),
     Canvas = gs:create(canvas, Window, [{width, ?WIDTH}, {height, ?HEIGHT}]),
@@ -42,7 +42,9 @@ go() ->
     put(canvas, Canvas),
     gs:config(Window, {map, true}),
     ScapeType = ?INIT_SCAPE_TYPE,
-    Scape_PId = gen_server:call(polis, {get_scape, ScapeType}),
+    PolisName = <<"polis_", (integer_to_binary(UserId))/binary>>,
+    Polis_PId = gproc:where({n, l, PolisName}),
+    Scape_PId = gen_server:call(Polis_PId, {get_scape, ScapeType}),
     %?DBG("Inside Visor:: Scape_PId:~p~n", [Scape_PId]),
     gen_server:cast(Scape_PId, {self(), subscribe, Canvas}),
     InitState = #state{
