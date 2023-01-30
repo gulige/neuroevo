@@ -327,6 +327,17 @@ handle_cast({Agent_Id, terminated, Fitness}, #state{evolutionary_algorithm = ste
             {noreply, U_S}
     end;
 
+handle_cast({Agent_Id, stuck}, #state{evolutionary_algorithm = steady_state, % 稳态（有人口损失时随时从原型池中挑选原型补充实例）
+                                      population_id = Population_Id,
+                                      activeAgent_IdPs = ActiveAgent_IdPs} = S) ->
+    NewAgent_PId = exoself:start(Agent_Id, self(), Population_Id),
+    U_ActiveAgent_IdPs = [{Agent_Id, NewAgent_PId} | lists:keydelete(Agent_Id, 1, ActiveAgent_IdPs)],
+    U_S = S#state{
+        activeAgent_IdPs = U_ActiveAgent_IdPs
+    },
+    ?INFO("Agent_Id:~p stuck, already terminated, and restarted.~n", [Agent_Id]),
+    {noreply, U_S};
+
 % The population_monitor process accepts a pause command cast, which if it recieves, it then goes into pause mode after all the agents have completed
 % with their evaluations. The process can only go into pause mode if it is currently in the continue mode (its op_tag is set to continue).
 handle_cast({op_tag, pause}, S) when S#state.op_tag =:= continue ->

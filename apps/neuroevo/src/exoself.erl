@@ -251,7 +251,17 @@ loop(#state{pm_pid = PopMon_PId} = S) ->
         {PopMon_PId, terminate} ->
             terminate_phenotype(S#state.cx_pid, S#state.spids, S#state.npids, S#state.apids,
                                 S#state.private_scape_pids, S#state.public_scape_pids,
-                                S#state.cpp_pids, S#state.cep_pids, S#state.substrate_pid)
+                                S#state.cpp_pids, S#state.cep_pids, S#state.substrate_pid);
+        {StuckPid, stuck} ->
+            case get(stuck) of
+                undefined ->
+                    put(stuck, true),
+                    gen_server:cast(S#state.pm_pid, {S#state.agent_id, stuck}),
+                    terminate_phenotype(S#state.cx_pid, S#state.spids, S#state.npids, S#state.apids,
+                                        S#state.private_scape_pids, S#state.public_scape_pids,
+                                        S#state.cpp_pids, S#state.cep_pids, S#state.substrate_pid);
+                _ -> void
+            end
         %after 10000 ->
         %    ?ERR("exoself:~p stuck.~n", [S#state.agent_id])
     end.

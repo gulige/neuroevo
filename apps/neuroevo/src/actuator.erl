@@ -27,7 +27,17 @@ loop(Id, ExoSelf_PId, Cx_PId, Scape, ActuatorName, VL, Parameters, {[From_PId|Fa
             ok
     end;
 loop(Id, ExoSelf_PId, Cx_PId, Scape, ActuatorName, VL, Parameters, {[], MFanin_PIds}, Acc) ->
-    {Fitness, EndFlag} = ActuatorName:act(ExoSelf_PId, lists:reverse(Acc), VL, Parameters, Scape),
-    Cx_PId ! {self(), sync, Fitness, EndFlag},
-    loop(Id, ExoSelf_PId, Cx_PId, Scape, ActuatorName, VL, Parameters, {MFanin_PIds, MFanin_PIds}, []).
+    case catch ActuatorName:act(ExoSelf_PId, lists:reverse(Acc), VL, Parameters, Scape) of
+        {'EXIT', {timeout, _}} ->
+            ?DBG("Actuator:~p timeout, is terminating.~n", [Id]),
+            ExoSelf_PId ! {self(), stuck},
+            ok;
+        {'EXIT', Reason} ->
+            ?DBG("Actuator:~p error, ~p.~n", [Id, Reason]),
+            Cx_PId ! {self(), sync, 0, 0},
+            loop(Id, ExoSelf_PId, Cx_PId, Scape, ActuatorName, VL, Parameters, {MFanin_PIds, MFanin_PIds}, []);
+        {Fitness, EndFlag} ->
+            Cx_PId ! {self(), sync, Fitness, EndFlag},
+            loop(Id, ExoSelf_PId, Cx_PId, Scape, ActuatorName, VL, Parameters, {MFanin_PIds, MFanin_PIds}, [])
+    end.
 

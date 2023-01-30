@@ -19,9 +19,19 @@ prep(ExoSelf_PId) ->
 loop(Id, ExoSelf_PId, Cx_PId, Scape, SensorName, VL, Parameters, Fanout_PIds) ->
     receive
         {Cx_PId, sync} ->
-            SensoryVector = SensorName:sense(ExoSelf_PId, VL, Parameters, Scape),
-            [Pid ! {self(), forward, SensoryVector} || Pid <- Fanout_PIds],
-            loop(Id, ExoSelf_PId, Cx_PId, Scape, SensorName, VL, Parameters, Fanout_PIds);
+            case catch SensorName:sense(ExoSelf_PId, VL, Parameters, Scape) of
+                {'EXIT', {timeout, _}} ->
+                    ?DBG("Sensor:~p timeout, is terminating.~n", [Id]),
+                    ExoSelf_PId ! {self(), stuck},
+                    ok;
+                {'EXIT', Reason} ->
+                    ?DBG("Sensor:~p error, ~p.~n", [Id, Reason]),
+                    [Pid ! {self(), forward, lists:duplicate(VL, -1)} || Pid <- Fanout_PIds],
+                    loop(Id, ExoSelf_PId, Cx_PId, Scape, SensorName, VL, Parameters, Fanout_PIds);
+                SensoryVector ->
+                    [Pid ! {self(), forward, SensoryVector} || Pid <- Fanout_PIds],
+                    loop(Id, ExoSelf_PId, Cx_PId, Scape, SensorName, VL, Parameters, Fanout_PIds)
+            end;
         {ExoSelf_PId, terminate} ->
             ?DBG("Sensor:~p is terminating.~n", [Id]),
             ok

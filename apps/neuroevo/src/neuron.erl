@@ -148,7 +148,8 @@ loop(S, ExoSelf_PId, [SI_PId|SI_PIds], [MI_PId|MI_PIds], SIAcc, MIAcc) ->
             ?DBG("Neuron:~p is terminating.~n", [self()]),
             ok
     after 60000 ->
-        ?ERR("neuron:~p stuck.~n", [S#state.id])
+        ?ERR("neuron:~p stuck.~n", [S#state.id]),
+        ExoSelf_PId ! {self(), stuck}
     end.
 
 % The fanout/2 function fans out the Msg to all the PIds in its list.
